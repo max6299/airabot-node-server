@@ -7,6 +7,7 @@ const {requireAuth} = require("../middleware/auth");
 const router = new expmod.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RE = /^[6-9]\d{9}$/;
 
 /**
  * Creates a validation error response object.
@@ -39,7 +40,8 @@ function userResponse(user) {
   return {
     id: user._id.toString(),
     name: user.name,
-    email: user.email,
+    phone: user.phone,
+    email: user.email || null,
     location: user.location,
     district: user.district,
     created_at: user.createdAt.toISOString(),
@@ -111,6 +113,7 @@ function tokenResponse(user) {
 
 router.route("/register").post(async (req, res) => {
   const name = req.body.name;
+  const phone = req.body.phone;
   const email = req.body.email;
   const password = req.body.password;
 
@@ -129,8 +132,24 @@ router.route("/register").post(async (req, res) => {
         );
   }
   if (
-    typeof email !== "string" ||
-    !EMAIL_RE.test(email.trim())
+    typeof phone !== "string" ||
+    !PHONE_RE.test(phone.trim())
+  ) {
+    return res
+        .status(422)
+        .json(
+            bodyError(
+                "phone",
+                "Enter a valid 10-digit Indian mobile number",
+                "value_error",
+            ),
+        );
+  }
+  if (
+    email !== undefined &&
+    email !== null &&
+    email !== "" &&
+    (typeof email !== "string" || !EMAIL_RE.test(email.trim()))
   ) {
     return res
         .status(422)
@@ -159,21 +178,37 @@ router.route("/register").post(async (req, res) => {
         );
   }
 
-  const cleanEmail = email.trim().toLowerCase();
+  const cleanPhone = phone.trim();
+  const cleanEmail =
+    email && typeof email === "string" && email.trim()
+      ? email.trim().toLowerCase()
+      : null;
   try {
-    const existing = await User.findOne({
-      email: cleanEmail,
+    const existingPhone = await User.findOne({
+      phone: cleanPhone,
     });
-    if (existing) {
+    if (existingPhone) {
       return res.status(409).json({
-        detail: "Email already registered",
+        detail: "Phone number already registered",
       });
     }
-    const user = new User({
+    if (cleanEmail) {
+      const existingEmail = await User.findOne({
+        email: cleanEmail,
+      });
+      if (existingEmail) {
+        return res.status(409).json({
+          detail: "Email already registered",
+        });
+      }
+    }
+    const userData = {
       name: name.trim(),
+      phone: cleanPhone,
       email: cleanEmail,
       password_hash: bcrypt.hashSync(password, 10),
-    });
+    };
+    const user = new User(userData);
     await user.save();
     res.status(201).json({
       ...tokenResponse(user),
