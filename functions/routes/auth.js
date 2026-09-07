@@ -8,14 +8,33 @@ const router = new expmod.Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * Creates a validation error response object.
+ * @param {string} detail - Error detail message.
+ * @return {Object} Error response object.
+ */
 function validationError(detail) {
   return {detail: detail};
 }
 
+/**
+ * Creates a body field validation error.
+ * @param {string} field - Field name.
+ * @param {string} msg - Error message.
+ * @param {string} type - Error type.
+ * @return {Object} Error response object.
+ */
 function bodyError(field, msg, type) {
-  return validationError([{loc: ["body", field], msg: msg, type: type}]);
+  return validationError(
+      [{loc: ["body", field], msg: msg, type: type}],
+  );
 }
 
+/**
+ * Formats a user document for API responses.
+ * @param {Object} user - Mongoose user document.
+ * @return {Object} Formatted user object.
+ */
 function userResponse(user) {
   return {
     id: user._id.toString(),
@@ -27,14 +46,31 @@ function userResponse(user) {
   };
 }
 
+/**
+ * Generates a JWT access token for a user.
+ * @param {string} userId - The user's ID.
+ * @return {string} Signed JWT access token.
+ */
 function createAccessToken(userId) {
   return jwt.sign(
-      {sub: userId, type: "access", iat: Math.floor(Date.now() / 1000)},
+      {
+        sub: userId,
+        type: "access",
+        iat: Math.floor(Date.now() / 1000),
+      },
       process.env.SECRET_KEY,
-      {expiresIn: process.env.ACCESS_TOKEN_EXPIRE_MINUTES + "m"},
+      {
+        expiresIn:
+          process.env.ACCESS_TOKEN_EXPIRE_MINUTES + "m",
+      },
   );
 }
 
+/**
+ * Generates a JWT refresh token for a user.
+ * @param {string} userId - The user's ID.
+ * @return {string} Signed JWT refresh token.
+ */
 function createRefreshToken(userId) {
   return jwt.sign(
       {
@@ -44,16 +80,32 @@ function createRefreshToken(userId) {
         iat: Math.floor(Date.now() / 1000),
       },
       process.env.REF_TOKEN_SECRET,
-      {expiresIn: process.env.REFRESH_TOKEN_EXPIRE_DAYS + "d"},
+      {
+        expiresIn:
+          process.env.REFRESH_TOKEN_EXPIRE_DAYS + "d",
+      },
   );
 }
 
+/**
+ * Builds the full token response for a user.
+ * @param {Object} user - Mongoose user document.
+ * @return {Object} Token response object.
+ */
 function tokenResponse(user) {
   return {
-    access_token: createAccessToken(user._id.toString()),
-    refresh_token: createRefreshToken(user._id.toString()),
+    access_token: createAccessToken(
+        user._id.toString(),
+    ),
+    refresh_token: createRefreshToken(
+        user._id.toString(),
+    ),
     token_type: "bearer",
-    expires_in: parseInt(process.env.ACCESS_TOKEN_EXPIRE_MINUTES, 10) * 60,
+    expires_in:
+      parseInt(
+          process.env.ACCESS_TOKEN_EXPIRE_MINUTES,
+          10,
+      ) * 60,
   };
 }
 
@@ -62,27 +114,60 @@ router.route("/register").post(async (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
 
-  if (typeof name !== "string" || name.trim().length === 0) {
+  if (
+    typeof name !== "string" ||
+    name.trim().length === 0
+  ) {
     return res
         .status(422)
-        .json(bodyError("name", "Field required", "value_error.missing"));
+        .json(
+            bodyError(
+                "name",
+                "Field required",
+                "value_error.missing",
+            ),
+        );
   }
-  if (typeof email !== "string" || !EMAIL_RE.test(email.trim())) {
+  if (
+    typeof email !== "string" ||
+    !EMAIL_RE.test(email.trim())
+  ) {
     return res
         .status(422)
-        .json(bodyError("email", "value is not a valid email address", "value_error"));
+        .json(
+            bodyError(
+                "email",
+                "value is not a valid email address",
+                "value_error",
+            ),
+        );
   }
-  if (typeof password !== "string" || password.length < 8 || password.length > 128) {
+  if (
+    typeof password !== "string" ||
+    password.length < 8 ||
+    password.length > 128
+  ) {
     return res
         .status(422)
-        .json(bodyError("password", "String should have at least 8 characters", "string_too_short"));
+        .json(
+            bodyError(
+                "password",
+                "String should have at least " +
+                  "8 characters",
+                "string_too_short",
+            ),
+        );
   }
 
   const cleanEmail = email.trim().toLowerCase();
   try {
-    const existing = await User.findOne({email: cleanEmail});
+    const existing = await User.findOne({
+      email: cleanEmail,
+    });
     if (existing) {
-      return res.status(409).json({detail: "Email already registered"});
+      return res.status(409).json({
+        detail: "Email already registered",
+      });
     }
     const user = new User({
       name: name.trim(),
@@ -95,7 +180,9 @@ router.route("/register").post(async (req, res) => {
       user: userResponse(user),
     });
   } catch (err) {
-    res.status(500).json({detail: "Internal server error"});
+    res.status(500).json({
+      detail: "Internal server error",
+    });
   }
 });
 
@@ -103,47 +190,85 @@ router.route("/login").post(async (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
 
-  if (typeof email !== "string" || typeof password !== "string" || password.length === 0) {
+  if (
+    typeof email !== "string" ||
+    typeof password !== "string" ||
+    password.length === 0
+  ) {
     return res
         .status(422)
-        .json(bodyError("password", "Field required", "value_error.missing"));
+        .json(
+            bodyError(
+                "password",
+                "Field required",
+                "value_error.missing",
+            ),
+        );
   }
 
   try {
-    const user = await User.findOne({email: email.trim().toLowerCase()});
-    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    const user = await User.findOne({
+      email: email.trim().toLowerCase(),
+    });
+    if (
+      !user ||
+      !bcrypt.compareSync(
+          password,
+          user.password_hash,
+      )
+    ) {
       return res
           .status(401)
-          .json({detail: "Invalid email or password"});
+          .json({
+            detail: "Invalid email or password",
+          });
     }
     res.json({
       ...tokenResponse(user),
       user: userResponse(user),
     });
   } catch (err) {
-    res.status(500).json({detail: "Internal server error"});
+    res.status(500).json({
+      detail: "Internal server error",
+    });
   }
 });
 
 router.route("/refresh").post(async (req, res) => {
   const refreshToken = req.body.refresh_token;
-  if (typeof refreshToken !== "string" || refreshToken.length === 0) {
+  if (
+    typeof refreshToken !== "string" ||
+    refreshToken.length === 0
+  ) {
     return res
         .status(422)
-        .json(bodyError("refresh_token", "Field required", "value_error.missing"));
+        .json(
+            bodyError(
+                "refresh_token",
+                "Field required",
+                "value_error.missing",
+            ),
+        );
   }
   try {
-    const decoded = jwt.verify(refreshToken, process.env.REF_TOKEN_SECRET);
+    const decoded = jwt.verify(
+        refreshToken,
+        process.env.REF_TOKEN_SECRET,
+    );
     if (decoded.type !== "refresh") {
       return res
           .status(401)
-          .json({detail: "Invalid refresh token"});
+          .json({
+            detail: "Invalid refresh token",
+          });
     }
     const user = await User.findById(decoded.sub);
     if (!user) {
       return res
           .status(401)
-          .json({detail: "Invalid refresh token"});
+          .json({
+            detail: "Invalid refresh token",
+          });
     }
     res.json(tokenResponse(user));
   } catch (err) {
@@ -157,45 +282,76 @@ router.route("/me").get(requireAuth, (req, res) => {
   res.json(userResponse(req.user));
 });
 
-router.route("/me").patch(requireAuth, async (req, res) => {
-  const location = req.body.location;
-  const district = req.body.district;
+router.route("/me").patch(
+    requireAuth,
+    async (req, res) => {
+      const location = req.body.location;
+      const district = req.body.district;
 
-  if (typeof location !== "string") {
-    return res
-        .status(422)
-        .json(bodyError("location", "Field required", "value_error.missing"));
-  }
-  if (typeof district !== "string") {
-    return res
-        .status(422)
-        .json(bodyError("district", "Field required", "value_error.missing"));
-  }
+      if (typeof location !== "string") {
+        return res
+            .status(422)
+            .json(
+                bodyError(
+                    "location",
+                    "Field required",
+                    "value_error.missing",
+                ),
+            );
+      }
+      if (typeof district !== "string") {
+        return res
+            .status(422)
+            .json(
+                bodyError(
+                    "district",
+                    "Field required",
+                    "value_error.missing",
+                ),
+            );
+      }
 
-  req.user.location = location.trim();
-  req.user.district = district.trim();
-  try {
-    await req.user.save();
-    res.json(userResponse(req.user));
-  } catch (err) {
-    res.status(500).json({detail: "Internal server error"});
-  }
-});
+      req.user.location = location.trim();
+      req.user.district = district.trim();
+      try {
+        await req.user.save();
+        res.json(userResponse(req.user));
+      } catch (err) {
+        res.status(500).json({
+          detail: "Internal server error",
+        });
+      }
+    },
+);
 
-router.route("/push-token").put(requireAuth, async (req, res) => {
-  const pushToken = req.body.push_token;
-  if (typeof pushToken !== "string" || pushToken.trim().length === 0) {
-    return res
-        .status(422)
-        .json(bodyError("push_token", "Field required", "value_error.missing"));
-  }
-  req.user.push_token = pushToken.trim();
-  try {
-    await req.user.save();
-    res.json(userResponse(req.user));
-  } catch (err) {
-    res.status(500).json({detail: "Internal server error"});
-  }
-});
+router.route("/push-token").put(
+    requireAuth,
+    async (req, res) => {
+      const pushToken = req.body.push_token;
+      if (
+        typeof pushToken !== "string" ||
+        pushToken.trim().length === 0
+      ) {
+        return res
+            .status(422)
+            .json(
+                bodyError(
+                    "push_token",
+                    "Field required",
+                    "value_error.missing",
+                ),
+            );
+      }
+      req.user.push_token = pushToken.trim();
+      try {
+        await req.user.save();
+        res.json(userResponse(req.user));
+      } catch (err) {
+        res.status(500).json({
+          detail: "Internal server error",
+        });
+      }
+    },
+);
 
 module.exports = router;

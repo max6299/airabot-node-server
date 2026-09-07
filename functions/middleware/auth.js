@@ -1,6 +1,13 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user.model");
 
+/**
+ * Middleware to verify JWT access token and attach user.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ * @param {Function} next - Next middleware function.
+ * @return {void}
+ */
 function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader) {
@@ -10,7 +17,10 @@ function requireAuth(req, res, next) {
   }
   const token = authHeader.split(" ")[1];
   try {
-    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+    const decoded = jwt.verify(
+        token,
+        process.env.SECRET_KEY,
+    );
     if (decoded.type !== "access") {
       return res
           .status(401)
@@ -21,7 +31,9 @@ function requireAuth(req, res, next) {
           if (!user) {
             return res
                 .status(401)
-                .json({detail: "Invalid or expired token"});
+                .json({
+                  detail: "Invalid or expired token",
+                });
           }
           req.user = user;
           next();
@@ -29,7 +41,9 @@ function requireAuth(req, res, next) {
         .catch(() => {
           res
               .status(401)
-              .json({detail: "Invalid or expired token"});
+              .json({
+                detail: "Invalid or expired token",
+              });
         });
   } catch (err) {
     return res

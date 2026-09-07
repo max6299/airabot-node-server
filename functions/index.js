@@ -21,7 +21,9 @@ const connection = mongoose.connection;
 
 if (require.main === module) {
   connection.once("open", () => {
-    console.info("MongoDB database connection established successfully");
+    console.info(
+        "MongoDB database connection established successfully",
+    );
     app.listen(port, () => {
       console.info(`Server is running on port: ${port}`);
     });
@@ -39,19 +41,38 @@ app.use("/units", unitsRouter);
 app.use("/finance", financeRouter);
 app.use("/chat", chatRouter);
 
+/**
+ * Attaches the authenticated user's ID to request headers.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ * @param {Function} next - Next middleware function.
+ */
 function attachGatewayUserId(req, res, next) {
-  req.headers["x-auth-user-id"] = req.user._id.toString();
+  req.headers["x-auth-user-id"] =
+      req.user._id.toString();
   next();
 }
 
+/**
+ * Proxies requests to the Python backend API.
+ * @param {Object} req - Express request object.
+ * @param {Object} res - Express response object.
+ */
 function pythonProxy(req, res) {
-  const target = new URL(process.env.PYTHON_API_URL || "http://localhost:8000");
+  const target = new URL(
+      process.env.PYTHON_API_URL || "http://localhost:8000",
+  );
   const headers = {...req.headers, host: target.host};
-  const requestLib = target.protocol === "https:" ? https : http;
+  const requestLib =
+      target.protocol === "https:" ? https : http;
   let body = null;
-  if (req.body !== undefined && Object.keys(req.body).length > 0) {
+  if (
+    req.body !== undefined &&
+    Object.keys(req.body).length > 0
+  ) {
     body = JSON.stringify(req.body);
-    headers["content-length"] = Buffer.byteLength(body);
+    headers["content-length"] =
+        Buffer.byteLength(body);
   }
   const proxyReq = requestLib.request(
       {
@@ -62,15 +83,26 @@ function pythonProxy(req, res) {
         headers: headers,
       },
       (proxyRes) => {
-        console.log("[proxy]", req.method, req.originalUrl, "-> upstream", proxyRes.statusCode);
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        console.log(
+            "[proxy]",
+            req.method,
+            req.originalUrl,
+            "-> upstream",
+            proxyRes.statusCode,
+        );
+        res.writeHead(
+            proxyRes.statusCode,
+            proxyRes.headers,
+        );
         proxyRes.pipe(res);
       },
   );
   proxyReq.on("error", (err) => {
     console.error("[proxy] error:", err.message);
     if (!res.headersSent) {
-      res.status(502).json({detail: "Upstream server error"});
+      res.status(502).json({
+        detail: "Upstream server error",
+      });
     } else {
       res.end();
     }
@@ -82,10 +114,30 @@ function pythonProxy(req, res) {
   }
 }
 
-app.use("/chat/text", requireAuth, attachGatewayUserId, pythonProxy);
-app.use("/chat/voice", requireAuth, attachGatewayUserId, pythonProxy);
-app.use("/rag/context", requireAuth, attachGatewayUserId, pythonProxy);
-app.use("/rag/packs", requireAuth, attachGatewayUserId, pythonProxy);
+app.use(
+    "/chat/text",
+    requireAuth,
+    attachGatewayUserId,
+    pythonProxy,
+);
+app.use(
+    "/chat/voice",
+    requireAuth,
+    attachGatewayUserId,
+    pythonProxy,
+);
+app.use(
+    "/rag/context",
+    requireAuth,
+    attachGatewayUserId,
+    pythonProxy,
+);
+app.use(
+    "/rag/packs",
+    requireAuth,
+    attachGatewayUserId,
+    pythonProxy,
+);
 app.use("/admin", pythonProxy);
 
 app.get("/health", (req, res) => {
@@ -93,14 +145,27 @@ app.get("/health", (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error("[error]", req.method, req.originalUrl, err.stack);
+  console.error(
+      "[error]",
+      req.method,
+      req.originalUrl,
+      err.stack,
+  );
   if (res.headersSent) return res.end();
   if (err.type === "entity.parse.failed") {
     return res.status(422).json({
-      detail: [{loc: ["body"], msg: "JSON decode error", type: "json_invalid"}],
+      detail: [
+        {
+          loc: ["body"],
+          msg: "JSON decode error",
+          type: "json_invalid",
+        },
+      ],
     });
   }
-  res.status(500).json({detail: "Internal server error"});
+  res.status(500).json({
+    detail: "Internal server error",
+  });
 });
 
 exports.app = functions.https.onRequest(app);
