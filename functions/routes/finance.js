@@ -10,23 +10,6 @@ const {requireAuth} = require("../middleware/auth");
 
 const router = new expmod.Router();
 
-const LEDGER_TYPES = ["debit", "credit"];
-
-/**
- * Creates a body field validation error.
- * @param {string} field - Field name.
- * @param {string} msg - Error message.
- * @param {string} type - Error type.
- * @return {Object} Error response object.
- */
-function bodyError(field, msg, type) {
-  return {
-    detail: [
-      {loc: ["body", field], msg: msg, type: type},
-    ],
-  };
-}
-
 /**
  * Formats a date to ISO date string.
  * @param {Date} d - Date object.
@@ -169,34 +152,20 @@ router.route("/summary").get(
     },
 );
 
-router.route("/budgets/:farm_id").put(
+router.route("/budgets/update").post(
     requireAuth,
     async (req, res) => {
-      if (!isValidObjectId(req.params.farm_id)) {
+      const farmId = req.body.farm_id;
+      if (!isValidObjectId(farmId)) {
         return res.status(404).json({
           detail: "Unit not found",
         });
       }
       const estimatedExpense =
         req.body.estimated_expense;
-      if (
-        typeof estimatedExpense !== "number" ||
-        estimatedExpense < 0
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "estimated_expense",
-                    "Input should be greater " +
-                      "than or equal to 0",
-                    "greater_than_equal",
-                ),
-            );
-      }
       try {
         const farm = await Unit.findOne({
-          _id: req.params.farm_id,
+          _id: farmId,
           user_id: req.user._id,
         });
         if (!farm) {
@@ -275,111 +244,6 @@ router.route("/ledger").post(
       const note = req.body.note;
       const entryDate = req.body.entry_date;
 
-      if (
-        typeof farmId !== "string" ||
-        !isValidObjectId(farmId)
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "farm_id",
-                    "Field required",
-                    "value_error.missing",
-                ),
-            );
-      }
-      if (
-        cropId !== undefined &&
-        cropId !== null &&
-        !isValidObjectId(cropId)
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "crop_id",
-                    "Input should be a valid UUID",
-                    "uuid_parsing",
-                ),
-            );
-      }
-      if (
-        typeof type !== "string" ||
-        !LEDGER_TYPES.includes(type)
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "type",
-                    "String should match pattern" +
-                      " '^(debit|credit)$'",
-                    "string_pattern_mismatch",
-                ),
-            );
-      }
-      if (
-        typeof category !== "string" ||
-        category.trim().length === 0 ||
-        category.length > 40
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "category",
-                    "String should have " +
-                      "at most 40 characters",
-                    "string_too_long",
-                ),
-            );
-      }
-      if (
-        typeof amount !== "number" ||
-        amount <= 0
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "amount",
-                    "Input should be greater than 0",
-                    "greater_than",
-                ),
-            );
-      }
-      if (
-        note !== undefined &&
-        note !== null &&
-        (typeof note !== "string" ||
-        note.length > 1000)
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "note",
-                    "String should have " +
-                      "at most 1000 characters",
-                    "string_too_long",
-                ),
-            );
-      }
-      if (
-        typeof entryDate !== "string" ||
-        isNaN(new Date(entryDate).getTime())
-      ) {
-        return res
-            .status(422)
-            .json(
-                bodyError(
-                    "entry_date",
-                    "Input should be a valid date",
-                    "date_type",
-                ),
-            );
-      }
       try {
         const farm = await Unit.findOne({
           _id: farmId,
@@ -408,11 +272,11 @@ router.route("/ledger").post(
           farm_id: farm._id,
           crop_id: cropId || null,
           type: type,
-          category: category.trim(),
+          category: typeof category === "string" ? category.trim() : "",
           amount: amount,
           note:
             note !== undefined && note !== null ?
-              note.trim() :
+              (typeof note === "string" ? note.trim() : null) :
               null,
           entry_date: new Date(entryDate),
         });
@@ -428,11 +292,12 @@ router.route("/ledger").post(
     },
 );
 
-router.route("/ledger/:entry_id").patch(
+router.route("/ledger/update").post(
     requireAuth,
     async (req, res) => {
+      const entryId = req.body.entry_id;
       if (
-        !isValidObjectId(req.params.entry_id)
+        !isValidObjectId(entryId)
       ) {
         return res.status(404).json({
           detail: "Ledger entry not found",
@@ -441,7 +306,7 @@ router.route("/ledger/:entry_id").patch(
       try {
         const entry =
           await LedgerEntry.findOne({
-            _id: req.params.entry_id,
+            _id: entryId,
             user_id: req.user._id,
           });
         if (!entry) {
@@ -503,105 +368,30 @@ router.route("/ledger/:entry_id").patch(
           }
         }
         if (req.body.type !== undefined) {
-          if (
-            typeof req.body.type !==
-              "string" ||
-            !LEDGER_TYPES.includes(
-                req.body.type,
-            )
-          ) {
-            return res.status(422).json(
-                bodyError(
-                    "type",
-                    "String should match " +
-                      "pattern '^(debit|credit)$'",
-                    "string_pattern_mismatch",
-                ),
-            );
-          }
           entry.type = req.body.type;
         }
         if (
           req.body.category !== undefined
         ) {
-          if (
-            typeof req.body.category !==
-              "string" ||
-            req.body.category.trim()
-                .length === 0 ||
-            req.body.category.length > 40
-          ) {
-            return res.status(422).json(
-                bodyError(
-                    "category",
-                    "String should have " +
-                      "at most 40 characters",
-                    "string_too_long",
-                ),
-            );
-          }
           entry.category =
-            req.body.category.trim();
+            typeof req.body.category === "string" ?
+              req.body.category.trim() :
+              req.body.category;
         }
         if (req.body.amount !== undefined) {
-          if (
-            typeof req.body.amount !==
-              "number" ||
-            req.body.amount <= 0
-          ) {
-            return res.status(422).json(
-                bodyError(
-                    "amount",
-                    "Input should be " +
-                      "greater than 0",
-                    "greater_than",
-                ),
-            );
-          }
           entry.amount = req.body.amount;
         }
         if (req.body.note !== undefined) {
-          if (
-            req.body.note !== null &&
-            (typeof req.body.note !==
-              "string" ||
-            req.body.note.length > 1000)
-          ) {
-            return res.status(422).json(
-                bodyError(
-                    "note",
-                    "String should have " +
-                      "at most 1000 characters",
-                    "string_too_long",
-                ),
-            );
-          }
           entry.note =
             req.body.note === null ?
               null :
-              req.body.note.trim();
+              (typeof req.body.note === "string" ?
+                req.body.note.trim() :
+                req.body.note);
         }
         if (
           req.body.entry_date !== undefined
         ) {
-          if (
-            typeof req.body.entry_date !==
-              "string" ||
-            isNaN(
-                new Date(
-                    req.body.entry_date,
-                ).getTime(),
-            )
-          ) {
-            return res.status(422).json(
-                bodyError(
-                    "entry_date",
-                    "Input should be " +
-                      "a valid date",
-                    "date_type",
-                ),
-            );
-          }
           entry.entry_date = new Date(
               req.body.entry_date,
           );
@@ -616,11 +406,12 @@ router.route("/ledger/:entry_id").patch(
     },
 );
 
-router.route("/ledger/:entry_id").delete(
+router.route("/ledger/delete").post(
     requireAuth,
     async (req, res) => {
+      const entryId = req.body.entry_id;
       if (
-        !isValidObjectId(req.params.entry_id)
+        !isValidObjectId(entryId)
       ) {
         return res.status(404).json({
           detail: "Ledger entry not found",
@@ -629,7 +420,7 @@ router.route("/ledger/:entry_id").delete(
       try {
         const entry =
           await LedgerEntry.findOne({
-            _id: req.params.entry_id,
+            _id: entryId,
             user_id: req.user._id,
           });
         if (!entry) {

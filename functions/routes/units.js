@@ -10,36 +10,10 @@ const {requireAuth} = require("../middleware/auth");
 
 const router = new expmod.Router();
 
-const UNIT_TYPES = [
-  "field", "crops", "pond",
-  "livestock", "poultry",
-];
-const CROP_STATUSES = [
-  "planted", "growing", "cultivated",
-];
 const MAX_LIVE_CROPS = 3;
 const LIVE_CROP_LIMIT_MSG =
     "You can only have 3 live crops in a unit. " +
     "Mark a crop as Cultivated to free up space.";
-const UNIT_TYPE_PATTERN =
-    "^(field|crops|pond|livestock|poultry)$";
-const CROP_STATUS_PATTERN =
-    "^(planted|growing|cultivated)$";
-
-/**
- * Creates a body field validation error.
- * @param {string} field - Field name.
- * @param {string} msg - Error message.
- * @param {string} type - Error type.
- * @return {Object} Error response object.
- */
-function bodyError(field, msg, type) {
-  return {
-    detail: [
-      {loc: ["body", field], msg: msg, type: type},
-    ],
-  };
-}
 
 /**
  * Formats a date to ISO date string.
@@ -95,182 +69,6 @@ function unitResponse(u, crops) {
 }
 
 /**
- * Validates a unit creation/update payload.
- * @param {Object} body - Request body.
- * @param {boolean} partial - True for PATCH.
- * @return {Object|null} Error or null.
- */
-function validateUnitPayload(body, partial) {
-  if (
-    !partial &&
-    typeof body.name !== "string"
-  ) {
-    return bodyError(
-        "name",
-        "Field required",
-        "value_error.missing",
-    );
-  }
-  if (
-    body.name !== undefined &&
-    (typeof body.name !== "string" ||
-    body.name.trim().length === 0 ||
-    body.name.trim().length > 255)
-  ) {
-    return bodyError(
-        "name",
-        "String should have " +
-          "at most 255 characters",
-        "string_too_long",
-    );
-  }
-  if (body.type !== undefined) {
-    if (
-      typeof body.type !== "string" ||
-      !UNIT_TYPES.includes(body.type)
-    ) {
-      return bodyError(
-          "type",
-          "String should match pattern " +
-            `'${UNIT_TYPE_PATTERN}'`,
-          "string_pattern_mismatch",
-      );
-    }
-  }
-  if (
-    body.location !== undefined &&
-    (typeof body.location !== "string" ||
-    body.location.length > 255)
-  ) {
-    return bodyError(
-        "location",
-        "String should have " +
-          "at most 255 characters",
-        "string_too_long",
-    );
-  }
-  if (body.area_acres !== undefined) {
-    if (
-      typeof body.area_acres !== "number" ||
-      body.area_acres < 0
-    ) {
-      return bodyError(
-          "area_acres",
-          "Input should be greater " +
-            "than or equal to 0",
-          "greater_than_equal",
-      );
-    }
-  }
-  return null;
-}
-
-/**
- * Validates a crop creation/update payload.
- * @param {Object} body - Request body.
- * @param {boolean} partial - True for PATCH.
- * @return {Object|null} Error or null.
- */
-function validateCropPayload(body, partial) {
-  if (
-    !partial &&
-    typeof body.name !== "string"
-  ) {
-    return bodyError(
-        "name",
-        "Field required",
-        "value_error.missing",
-    );
-  }
-  if (
-    body.name !== undefined &&
-    (typeof body.name !== "string" ||
-    body.name.trim().length === 0 ||
-    body.name.trim().length > 255)
-  ) {
-    return bodyError(
-        "name",
-        "String should have " +
-          "at most 255 characters",
-        "string_too_long",
-    );
-  }
-  if (body.type !== undefined) {
-    if (
-      typeof body.type !== "string" ||
-      !UNIT_TYPES.includes(body.type)
-    ) {
-      return bodyError(
-          "type",
-          "String should match pattern " +
-            `'${UNIT_TYPE_PATTERN}'`,
-          "string_pattern_mismatch",
-      );
-    }
-  }
-  if (
-    body.category !== undefined &&
-    (typeof body.category !== "string" ||
-    body.category.length > 40)
-  ) {
-    return bodyError(
-        "category",
-        "String should have " +
-          "at most 40 characters",
-        "string_too_long",
-    );
-  }
-  if (
-    body.growth_cycle !== undefined &&
-    (typeof body.growth_cycle !== "string" ||
-    body.growth_cycle.length > 20)
-  ) {
-    return bodyError(
-        "growth_cycle",
-        "String should have " +
-          "at most 20 characters",
-        "string_too_long",
-    );
-  }
-  if (body.status !== undefined) {
-    if (
-      typeof body.status !== "string" ||
-      !CROP_STATUSES.includes(body.status)
-    ) {
-      return bodyError(
-          "status",
-          "String should match pattern " +
-            `'${CROP_STATUS_PATTERN}'`,
-          "string_pattern_mismatch",
-      );
-    }
-  }
-  if (
-    body.seeding_date !== undefined &&
-    body.seeding_date !== null &&
-    typeof body.seeding_date !== "string"
-  ) {
-    return bodyError(
-        "seeding_date",
-        "Input should be a valid date",
-        "date_type",
-    );
-  }
-  if (
-    body.cultivation_date !== undefined &&
-    body.cultivation_date !== null &&
-    typeof body.cultivation_date !== "string"
-  ) {
-    return bodyError(
-        "cultivation_date",
-        "Input should be a valid date",
-        "date_type",
-    );
-  }
-  return null;
-}
-
-/**
  * Validates a MongoDB ObjectId string.
  * @param {string} id - The ID to validate.
  * @return {boolean} True if valid ObjectId.
@@ -321,13 +119,6 @@ router.route("/").get(
 router.route("/").post(
     requireAuth,
     async (req, res) => {
-      const error = validateUnitPayload(
-          req.body,
-          false,
-      );
-      if (error) {
-        return res.status(422).json(error);
-      }
       const unit = new Unit({
         user_id: req.user._id,
         name: req.body.name.trim(),
@@ -349,28 +140,20 @@ router.route("/").post(
     },
 );
 
-router.route("/:unit_id").patch(
+router.route("/update").post(
     requireAuth,
     async (req, res) => {
+      const unitId = req.body.unit_id;
       if (
-        !isValidObjectId(
-            req.params.unit_id,
-        )
+        !isValidObjectId(unitId)
       ) {
         return res.status(404).json({
           detail: "Unit not found",
         });
       }
-      const error = validateUnitPayload(
-          req.body,
-          true,
-      );
-      if (error) {
-        return res.status(422).json(error);
-      }
       try {
         const unit = await Unit.findOne({
-          _id: req.params.unit_id,
+          _id: unitId,
           user_id: req.user._id,
         });
         if (!unit) {
@@ -417,13 +200,12 @@ router.route("/:unit_id").patch(
     },
 );
 
-router.route("/:unit_id").delete(
+router.route("/delete").post(
     requireAuth,
     async (req, res) => {
+      const unitId = req.body.unit_id;
       if (
-        !isValidObjectId(
-            req.params.unit_id,
-        )
+        !isValidObjectId(unitId)
       ) {
         return res.status(404).json({
           detail: "Unit not found",
@@ -431,7 +213,7 @@ router.route("/:unit_id").delete(
       }
       try {
         const unit = await Unit.findOne({
-          _id: req.params.unit_id,
+          _id: unitId,
           user_id: req.user._id,
         });
         if (!unit) {
@@ -461,28 +243,20 @@ router.route("/:unit_id").delete(
     },
 );
 
-router.route("/:unit_id/crops").post(
+router.route("/crops").post(
     requireAuth,
     async (req, res) => {
+      const unitId = req.body.unit_id;
       if (
-        !isValidObjectId(
-            req.params.unit_id,
-        )
+        !isValidObjectId(unitId)
       ) {
         return res.status(404).json({
           detail: "Unit not found",
         });
       }
-      const error = validateCropPayload(
-          req.body,
-          false,
-      );
-      if (error) {
-        return res.status(422).json(error);
-      }
       try {
         const unit = await Unit.findOne({
-          _id: req.params.unit_id,
+          _id: unitId,
           user_id: req.user._id,
         });
         if (!unit) {
@@ -538,33 +312,24 @@ router.route("/:unit_id/crops").post(
 );
 
 router.route(
-    "/:unit_id/crops/:crop_id",
-).patch(
+    "/crops/update",
+).post(
     requireAuth,
     async (req, res) => {
+      const unitId = req.body.unit_id;
+      const cropId = req.body.crop_id;
       if (
-        !isValidObjectId(
-            req.params.unit_id,
-        ) ||
-        !isValidObjectId(
-            req.params.crop_id,
-        )
+        !isValidObjectId(unitId) ||
+        !isValidObjectId(cropId)
       ) {
         return res.status(404).json({
           detail: "Crop not found",
         });
       }
-      const error = validateCropPayload(
-          req.body,
-          true,
-      );
-      if (error) {
-        return res.status(422).json(error);
-      }
       try {
         const crop = await Crop.findOne({
-          _id: req.params.crop_id,
-          farm_id: req.params.unit_id,
+          _id: cropId,
+          farm_id: unitId,
           user_id: req.user._id,
         });
         if (!crop) {
@@ -634,17 +399,15 @@ router.route(
 );
 
 router.route(
-    "/:unit_id/crops/:crop_id",
-).delete(
+    "/crops/delete",
+).post(
     requireAuth,
     async (req, res) => {
+      const unitId = req.body.unit_id;
+      const cropId = req.body.crop_id;
       if (
-        !isValidObjectId(
-            req.params.unit_id,
-        ) ||
-        !isValidObjectId(
-            req.params.crop_id,
-        )
+        !isValidObjectId(unitId) ||
+        !isValidObjectId(cropId)
       ) {
         return res.status(404).json({
           detail: "Crop not found",
@@ -652,8 +415,8 @@ router.route(
       }
       try {
         const crop = await Crop.findOne({
-          _id: req.params.crop_id,
-          farm_id: req.params.unit_id,
+          _id: cropId,
+          farm_id: unitId,
           user_id: req.user._id,
         });
         if (!crop) {
