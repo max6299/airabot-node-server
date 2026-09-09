@@ -22,6 +22,7 @@ const userSchema = new Schema(
         default: "",
       },
       profession: {type: String, default: ""},
+      status: {type: String, enum: ["active", "inactive"], default: "active"},
     },
     {
       timestamps: true,
