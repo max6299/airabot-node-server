@@ -21,6 +21,10 @@ function userResponse(user) {
     otp_verified: user.otp_verified,
     location: user.location,
     district: user.district,
+    gender: user.gender || "",
+    dob: user.dob || "",
+    marital_status: user.marital_status || "",
+    profession: user.profession || "",
     created_at: user.createdAt.toISOString(),
   };
 }
@@ -199,7 +203,7 @@ router.route("/update").post(
 
       try {
         await req.user.save();
-        res.json(req.user);
+        res.json(userResponse(req.user));
       } catch (err) {
         res.status(500).json({
           detail: "Internal server error",
@@ -319,5 +323,169 @@ router.route("/verifyotp").post(async (req, res) => {
     });
   }
 });
+
+router.route("/profile").put(
+    requireAuth,
+    async (req, res) => {
+      const { gender, dob, marital_status, profession, location, district } = req.body;
+
+      if (gender !== undefined) req.user.gender = gender;
+      if (dob !== undefined) req.user.dob = dob;
+      if (marital_status !== undefined) req.user.marital_status = marital_status;
+      if (profession !== undefined) req.user.profession = profession;
+      if (location !== undefined) req.user.location = location;
+      if (district !== undefined) req.user.district = district;
+
+      try {
+        await req.user.save();
+        res.json(userResponse(req.user));
+      } catch (err) {
+        res.status(500).json({ detail: "Internal server error" });
+      }
+    },
+);
+
+router.route("/change-phone").post(
+    requireAuth,
+    async (req, res) => {
+      const { old_otp, new_phone } = req.body;
+      const cleanOldOtp = typeof old_otp === "string" ? old_otp.trim() : "";
+      const cleanNewPhone = typeof new_phone === "string" ? new_phone.trim() : "";
+
+      if (!cleanOldOtp) {
+        return res.status(400).json({ detail: "Old phone OTP is required" });
+      }
+      if (!cleanNewPhone || !/^[6-9]\d{9}$/.test(cleanNewPhone)) {
+        return res.status(400).json({
+          detail: "Enter a valid 10-digit Indian mobile number for new phone",
+        });
+      }
+
+      try {
+        if (!req.user.otp_val) {
+          return res.status(400).json({ detail: "No OTP found. Please request a new one." });
+        }
+        if (req.user.otp_expires_at < new Date()) {
+          return res.status(400).json({ detail: "OTP has expired. Please request a new one." });
+        }
+        if (req.user.otp_val !== cleanOldOtp) {
+          return res.status(400).json({ detail: "Invalid OTP. Please try again." });
+        }
+
+        const existingPhone = await User.findOne({ phone: cleanNewPhone });
+        if (existingPhone) {
+          return res.status(409).json({ detail: "This phone number is already registered" });
+        }
+
+        const newOtp = String(
+            Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000,
+        );
+
+        req.user.otp_val = newOtp;
+        req.user.otp_expires_at = new Date(Date.now() + 10 * 60 * 1000);
+        await req.user.save();
+
+        try {
+          await axios.get("https://sms.hitechsms.com/app/smsapi/index.php", {
+            params: {
+              key: "569ABB2E778B41",
+              campaign: 0,
+              contacts: cleanNewPhone,
+              msg: "Your OTP is " + newOtp + ". This code is valid for 10 minutes. Do not share it with anyone. - TWORINGS",
+              senderid: "TWRING",
+              routeid: 13,
+              type: "text",
+              template_id: "1207177106220884239",
+            },
+          });
+        } catch (smsErr) {
+          console.error("[change-phone] SMS failed:", smsErr.message);
+        }
+
+        res.json({ success: true, message: "OTP sent to new phone number" });
+      } catch (err) {
+        res.status(500).json({ detail: "Internal server error" });
+      }
+    },
+);
+
+router.route("/verify-new-phone").post(
+    requireAuth,
+    async (req, res) => {
+      const { new_phone, otp } = req.body;
+      const cleanNewPhone = typeof new_phone === "string" ? new_phone.trim() : "";
+      const cleanOtp = typeof otp === "string" ? otp.trim() : "";
+
+      if (!cleanNewPhone || !cleanOtp) {
+        return res.status(400).json({ detail: "New phone and OTP are required" });
+      }
+
+      try {
+        if (!req.user.otp_val) {
+          return res.status(400).json({ detail: "No OTP found. Please request a new one." });
+        }
+        if (req.user.otp_expires_at < new Date()) {
+          return res.status(400).json({ detail: "OTP has expired. Please request a new one." });
+        }
+        if (req.user.otp_val !== cleanOtp) {
+          return res.status(400).json({ detail: "Invalid OTP. Please try again." });
+        }
+
+        const existingPhone = await User.findOne({ phone: cleanNewPhone });
+        if (existingPhone) {
+          return res.status(409).json({ detail: "This phone number is already registered" });
+        }
+
+        req.user.phone = cleanNewPhone;
+        req.user.otp_val = undefined;
+        req.user.otp_expires_at = undefined;
+        await req.user.save();
+
+        res.json({
+          success: true,
+          message: "Phone number updated successfully",
+          user: userResponse(req.user),
+        });
+      } catch (err) {
+        res.status(500).json({ detail: "Internal server error" });
+      }
+    },
+);
+
+router.route("/change-password").post(
+    requireAuth,
+    async (req, res) => {
+      const { otp, new_password } = req.body;
+      const cleanOtp = typeof otp === "string" ? otp.trim() : "";
+
+      if (!cleanOtp) {
+        return res.status(400).json({ detail: "OTP is required" });
+      }
+      if (!new_password || typeof new_password !== "string" || new_password.length < 6) {
+        return res.status(400).json({ detail: "Password must be at least 6 characters" });
+      }
+
+      try {
+        if (!req.user.otp_val) {
+          return res.status(400).json({ detail: "No OTP found. Please request a new one." });
+        }
+        if (req.user.otp_expires_at < new Date()) {
+          return res.status(400).json({ detail: "OTP has expired. Please request a new one." });
+        }
+        if (req.user.otp_val !== cleanOtp) {
+          return res.status(400).json({ detail: "Invalid OTP. Please try again." });
+        }
+
+        req.user.password_hash = bcrypt.hashSync(new_password, 10);
+        req.user.otp_val = undefined;
+        req.user.otp_expires_at = undefined;
+        await req.user.save();
+
+        res.json({ success: true, message: "Password changed successfully" });
+      } catch (err) {
+        res.status(500).json({ detail: "Internal server error" });
+      }
+    },
+);
 
 module.exports = router;
