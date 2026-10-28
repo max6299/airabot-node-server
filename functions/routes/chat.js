@@ -16,6 +16,7 @@ const SUPPORTED_LANGUAGES = ["ta", "pa", "en"];
  */
 function bodyError(field, msg, type) {
   return {
+    success: false,
     detail: [
       {loc: ["body", field], msg: msg, type: type},
     ],
@@ -51,6 +52,7 @@ function validateSyncItem(item, index) {
     item.client_id.length > 64
   ) {
     return {
+      success: false,
       detail: [
         {
           loc: loc,
@@ -67,6 +69,7 @@ function validateSyncItem(item, index) {
     !SUPPORTED_LANGUAGES.includes(item.language))
   ) {
     return {
+      success: false,
       detail: [
         {
           loc: [...loc, "language"],
@@ -82,6 +85,7 @@ function validateSyncItem(item, index) {
     item.user_text.length > 2000
   ) {
     return {
+      success: false,
       detail: [
         {
           loc: [...loc, "user_text"],
@@ -98,6 +102,7 @@ function validateSyncItem(item, index) {
     item.reply_text.length > 4000
   ) {
     return {
+      success: false,
       detail: [
         {
           loc: [...loc, "reply_text"],
@@ -113,6 +118,7 @@ function validateSyncItem(item, index) {
     isNaN(new Date(item.created_at).getTime())
   ) {
     return {
+      success: false,
       detail: [
         {
           loc: [...loc, "created_at"],
@@ -136,18 +142,19 @@ router.route("/sync").post(
       ) {
         return res
             .status(422)
-            .json(
-                bodyError(
-                    "items",
-                    "List should have at least 1 item",
-                    "too_short",
-                ),
-            );
+            .json({
+              success: false,
+              ...bodyError(
+                  "items",
+                  "List should have at least 1 item",
+                  "too_short",
+              ),
+            });
       }
       for (let i = 0; i < items.length; i++) {
         const error = validateSyncItem(items[i], i);
         if (error) {
-          return res.status(422).json(error);
+          return res.status(422).json({ success: false, ...error });
         }
       }
       const docs = items.map((item) => ({
@@ -164,7 +171,7 @@ router.route("/sync").post(
             {ordered: false},
         );
         const saved = result.length;
-        res.json({
+        res.json({ success: true,
           saved: saved,
           skipped: items.length - saved,
         });
@@ -174,12 +181,12 @@ router.route("/sync").post(
           Array.isArray(err.insertedDocs)
         ) {
           const saved = err.insertedDocs.length;
-          return res.json({
+          return res.json({ success: true,
             saved: saved,
             skipped: items.length - saved,
           });
         }
-        res.status(500).json({
+        res.status(500).json({ success: false,
           detail: "Internal server error",
         });
       }
@@ -200,6 +207,7 @@ router.route("/messages").get(
           return res
               .status(422)
               .json({
+                success: false,
                 detail: [
                   {
                     loc: ["query", "limit"],
@@ -218,9 +226,13 @@ router.route("/messages").get(
         })
             .sort({created_at: -1})
             .limit(limit);
-        res.json(messages.map(messageResponse));
+        res.json({
+          success: true,
+          message: "Chat Messages",
+          data: messages.map(messageResponse),
+        });
       } catch (err) {
-        res.status(500).json({
+        res.status(500).json({ success: false,
           detail: "Internal server error",
         });
       }
