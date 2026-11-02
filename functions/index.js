@@ -115,24 +115,6 @@ function pythonProxy(req, res) {
 }
 
 app.use(
-    "/chat/text",
-    requireAuth,
-    attachGatewayUserId,
-    pythonProxy,
-);
-app.use(
-    "/chat/voice",
-    requireAuth,
-    attachGatewayUserId,
-    pythonProxy,
-);
-app.use(
-    "/rag/context",
-    requireAuth,
-    attachGatewayUserId,
-    pythonProxy,
-);
-app.use(
     "/rag/packs",
     requireAuth,
     attachGatewayUserId,
