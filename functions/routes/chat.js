@@ -31,6 +31,8 @@ function bodyError(field, msg, type) {
 function messageResponse(m) {
   return {
     id: m._id.toString(),
+    client_id: m.client_id || null,
+    conversation_id: m.conversation_id,
     language: m.language,
     user_text: m.user_text,
     reply_text: m.reply_text,
@@ -59,6 +61,23 @@ function validateSyncItem(item, index) {
           msg: "String should have " +
             "at most 64 characters",
           type: "string_too_long",
+        },
+      ],
+    };
+  }
+  if (
+    (typeof item.conversation_id !== "string" ||
+    item.conversation_id.length === 0 ||
+    item.conversation_id.length > 64 ||
+    item.conversation_id === "legacy")
+  ) {
+    return {
+      success: false,
+      detail: [
+        {
+          loc: [...loc, "conversation_id"],
+          msg: "conversation_id must be a valid conversation ID",
+          type: "value_error",
         },
       ],
     };
@@ -154,12 +173,13 @@ router.route("/sync").post(
       for (let i = 0; i < items.length; i++) {
         const error = validateSyncItem(items[i], i);
         if (error) {
-          return res.status(422).json({ success: false, ...error });
+          return res.status(422).json({success: false, ...error});
         }
       }
       const docs = items.map((item) => ({
         user_id: req.user._id,
         client_id: item.client_id,
+        conversation_id: item.conversation_id,
         language: item.language || "en",
         user_text: item.user_text,
         reply_text: item.reply_text,
@@ -171,7 +191,7 @@ router.route("/sync").post(
             {ordered: false},
         );
         const saved = result.length;
-        res.json({ success: true,
+        res.json({success: true,
           saved: saved,
           skipped: items.length - saved,
         });
@@ -181,60 +201,103 @@ router.route("/sync").post(
           Array.isArray(err.insertedDocs)
         ) {
           const saved = err.insertedDocs.length;
-          return res.json({ success: true,
+          return res.json({success: true,
             saved: saved,
             skipped: items.length - saved,
           });
         }
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
     },
 );
 
-router.route("/messages").get(
+router.route("/conversations").get(
     requireAuth,
     async (req, res) => {
       let limit = 50;
       if (req.query.limit !== undefined) {
         limit = parseInt(req.query.limit, 10);
-        if (
-          isNaN(limit) ||
-          limit < 1 ||
-          limit > 200
-        ) {
-          return res
-              .status(422)
-              .json({
-                success: false,
-                detail: [
-                  {
-                    loc: ["query", "limit"],
-                    msg: "Input should be greater " +
-                      "than or equal to 1 and " +
-                      "less than or equal to 200",
-                    type: "greater_than_equal",
-                  },
-                ],
-              });
+        if (isNaN(limit) || limit < 1 || limit > 200) {
+          return res.status(422).json({
+            success: false,
+            detail: "limit must be between 1 and 200",
+          });
         }
+      }
+      try {
+        const conversations = await ChatMessage.aggregate([
+          {$match: {
+            user_id: req.user._id,
+            conversation_id: {
+              $exists: true,
+              $type: "string",
+              $nin: ["", "legacy"],
+            },
+          }},
+          {$sort: {created_at: 1}},
+          {$group: {
+            _id: "$conversation_id",
+            title: {$first: "$user_text"},
+            created_at: {$first: "$created_at"},
+            updated_at: {$last: "$created_at"},
+            preview: {$last: "$user_text"},
+            message_count: {$sum: 1},
+          }},
+          {$sort: {updated_at: -1}},
+          {$limit: limit},
+        ]);
+        res.json({
+          success: true,
+          data: conversations.map((conversation) => ({
+            id: conversation._id,
+            title: conversation.title,
+            created_at: conversation.created_at.toISOString(),
+            updated_at: conversation.updated_at.toISOString(),
+            preview: conversation.preview,
+            message_count: conversation.message_count,
+          })),
+        });
+      } catch (err) {
+        res.status(500).json({success: false, detail: "Internal server error"});
+      }
+    },
+);
+
+router.route("/conversations/:conversationId/messages").get(
+    requireAuth,
+    async (req, res) => {
+      let limit = 200;
+      if (req.query.limit !== undefined) {
+        limit = parseInt(req.query.limit, 10);
+        if (isNaN(limit) || limit < 1 || limit > 500) {
+          return res.status(422).json({
+            success: false,
+            detail: "limit must be between 1 and 500",
+          });
+        }
+      }
+      const conversationId = req.params.conversationId;
+      if (!conversationId || conversationId === "legacy") {
+        return res.status(422).json({
+          success: false,
+          detail: "A valid conversation ID is required",
+        });
       }
       try {
         const messages = await ChatMessage.find({
           user_id: req.user._id,
+          conversation_id: conversationId,
         })
-            .sort({created_at: -1})
+            .sort({created_at: 1})
             .limit(limit);
         res.json({
           success: true,
-          message: "Chat Messages",
           data: messages.map(messageResponse),
         });
       } catch (err) {
-        res.status(500).json({ success: false,
-          detail: "Internal server error",
-        });
+        res.status(500).json({success: false, detail: "Internal server error"});
       }
     },
 );
