@@ -186,11 +186,20 @@ router.route("/sync").post(
         created_at: new Date(item.created_at),
       }));
       try {
-        const result = await ChatMessage.insertMany(
-            docs,
+        const result = await ChatMessage.bulkWrite(
+            docs.map((doc) => ({
+              updateOne: {
+                filter: {
+                  user_id: doc.user_id,
+                  client_id: doc.client_id,
+                },
+                update: {$set: doc},
+                upsert: true,
+              },
+            })),
             {ordered: false},
         );
-        const saved = result.length;
+        const saved = (result.upsertedCount || 0) + (result.matchedCount || 0);
         res.json({success: true,
           saved: saved,
           skipped: items.length - saved,
