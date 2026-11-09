@@ -83,15 +83,15 @@ router.route("/register").post(async (req, res) => {
 
   const cleanPhone = typeof phone === "string" ? phone.trim() : "";
   const cleanEmail =
-    email && typeof email === "string" && email.trim()
-      ? email.trim().toLowerCase()
-      : null;
+    email && typeof email === "string" && email.trim() ?
+      email.trim().toLowerCase() :
+      null;
   try {
     const existingPhone = await User.findOne({
       phone: cleanPhone,
     });
     if (existingPhone) {
-      return res.status(409).json({ success: false,
+      return res.status(409).json({success: false,
         detail: "Phone number already registered",
       });
     }
@@ -100,7 +100,7 @@ router.route("/register").post(async (req, res) => {
         email: cleanEmail,
       });
       if (existingEmail) {
-        return res.status(409).json({ success: false,
+        return res.status(409).json({success: false,
           detail: "Email already registered",
         });
       }
@@ -113,13 +113,13 @@ router.route("/register").post(async (req, res) => {
     };
     const user = new User(userData);
     await user.save();
-    res.status(201).json({ success: true,
+    res.status(201).json({success: true,
       message: "User Registered",
       ...tokenResponse(user),
       user: userResponse(user),
     });
   } catch (err) {
-    res.status(500).json({ success: false,
+    res.status(500).json({success: false,
       detail: "Internal server error",
     });
   }
@@ -153,13 +153,13 @@ router.route("/login").post(async (req, res) => {
             detail: "Invalid credentials",
           });
     }
-    res.json({ success: true,
+    res.json({success: true,
       message: "Login Successful",
       ...tokenResponse(user),
       user: userResponse(user),
     });
   } catch (err) {
-    res.status(500).json({ success: false,
+    res.status(500).json({success: false,
       detail: "Internal server error",
     });
   }
@@ -189,7 +189,11 @@ router.route("/refresh").post(async (req, res) => {
             detail: "Invalid refresh token",
           });
     }
-    res.json({ success: true, message: "Token Refreshed", ...tokenResponse(user) });
+    res.json({
+      success: true,
+      message: "Token Refreshed",
+      ...tokenResponse(user),
+    });
   } catch (err) {
     return res
         .status(401)
@@ -198,23 +202,27 @@ router.route("/refresh").post(async (req, res) => {
 });
 
 router.route("/me").get(requireAuth, (req, res) => {
-  res.json({ success: true, message: "User Profile", ...userResponse(req.user) });
+  res.json({success: true, message: "User Profile", ...userResponse(req.user)});
 });
 
 router.route("/update").post(
     requireAuth,
     async (req, res) => {
-      const { location, district, push_token } = req.body;
+      const {location, district, push_token: pushToken} = req.body;
 
       req.user.location = location;
       req.user.district = district;
-      req.user.push_token = push_token;
+      req.user.push_token = pushToken;
 
       try {
         await req.user.save();
-        res.json({ success: true, message: "User Profile", ...userResponse(req.user) });
+        res.json({
+          success: true,
+          message: "User Profile",
+          ...userResponse(req.user),
+        });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -227,7 +235,7 @@ router.route("/sendotp").post(async (req, res) => {
     typeof phone === "string" ? phone.trim() : "";
 
   if (!cleanPhone || !/^[6-9]\d{9}$/.test(cleanPhone)) {
-    return res.status(400).json({ success: false,
+    return res.status(400).json({success: false,
       detail: "Enter a valid 10-digit Indian mobile number",
     });
   }
@@ -235,7 +243,7 @@ router.route("/sendotp").post(async (req, res) => {
   try {
     const user = await User.findOne({phone: cleanPhone});
     if (!user) {
-      return res.status(404).json({ success: false,
+      return res.status(404).json({success: false,
         detail: "No account found with this mobile number",
       });
     }
@@ -255,7 +263,9 @@ router.route("/sendotp").post(async (req, res) => {
             key: "569ABB2E778B41",
             campaign: 0,
             contacts: cleanPhone,
-            msg: "Your OTP is " + otp + ". This code is valid for 10 minutes. Do not share it with anyone. - TWORINGS",
+            msg: "Your OTP is " + otp +
+              ". This code is valid for 10 minutes. " +
+              "Do not share it with anyone. - TWORINGS",
             senderid: "TWRING",
             routeid: 13,
             type: "text",
@@ -264,13 +274,13 @@ router.route("/sendotp").post(async (req, res) => {
         },
     );
 
-    res.json({ success: true,
+    res.json({success: true,
       message: "OTP sent successfully",
       smsResponse: smsRes.data,
     });
   } catch (err) {
     console.error("[sendotp] Error:", err.message);
-    res.status(500).json({ success: false,
+    res.status(500).json({success: false,
       detail: "Failed to send OTP. Please try again.",
     });
   }
@@ -284,7 +294,7 @@ router.route("/verifyotp").post(async (req, res) => {
     typeof otp === "string" ? otp.trim() : "";
 
   if (!cleanPhone || !cleanOtp) {
-    return res.status(400).json({ success: false,
+    return res.status(400).json({success: false,
       detail: "Phone and OTP are required",
     });
   }
@@ -292,25 +302,25 @@ router.route("/verifyotp").post(async (req, res) => {
   try {
     const user = await User.findOne({phone: cleanPhone});
     if (!user) {
-      return res.status(404).json({ success: false,
+      return res.status(404).json({success: false,
         detail: "No account found with this mobile number",
       });
     }
 
     if (!user.otp_val) {
-      return res.status(400).json({ success: false,
+      return res.status(400).json({success: false,
         detail: "No OTP found. Please request a new one.",
       });
     }
 
     if (user.otp_expires_at < new Date()) {
-      return res.status(400).json({ success: false,
+      return res.status(400).json({success: false,
         detail: "OTP has expired. Please request a new one.",
       });
     }
 
     if (user.otp_val !== cleanOtp) {
-      return res.status(400).json({ success: false,
+      return res.status(400).json({success: false,
         detail: "Invalid OTP. Please try again.",
       });
     }
@@ -320,12 +330,12 @@ router.route("/verifyotp").post(async (req, res) => {
     user.otp_expires_at = undefined;
     await user.save();
 
-    res.json({ success: true,
+    res.json({success: true,
       message: "OTP verified successfully",
     });
   } catch (err) {
     console.error("[verifyotp] Error:", err.message);
-    res.status(500).json({ success: false,
+    res.status(500).json({success: false,
       detail: "Failed to verify OTP. Please try again.",
     });
   }
@@ -334,20 +344,33 @@ router.route("/verifyotp").post(async (req, res) => {
 router.route("/profile").put(
     requireAuth,
     async (req, res) => {
-      const { gender, dob, marital_status, profession, location, district } = req.body;
+      const {
+        gender,
+        dob,
+        marital_status: maritalStatus,
+        profession,
+        location,
+        district,
+      } = req.body;
 
       if (gender !== undefined) req.user.gender = gender;
       if (dob !== undefined) req.user.dob = dob;
-      if (marital_status !== undefined) req.user.marital_status = marital_status;
+      if (maritalStatus !== undefined) {
+        req.user.marital_status = maritalStatus;
+      }
       if (profession !== undefined) req.user.profession = profession;
       if (location !== undefined) req.user.location = location;
       if (district !== undefined) req.user.district = district;
 
       try {
         await req.user.save();
-        res.json({ success: true, message: "User Profile", ...userResponse(req.user) });
+        res.json({
+          success: true,
+          message: "User Profile",
+          ...userResponse(req.user),
+        });
       } catch (err) {
-        res.status(500).json({ success: false, detail: "Internal server error" });
+        res.status(500).json({success: false, detail: "Internal server error"});
       }
     },
 );
@@ -355,33 +378,48 @@ router.route("/profile").put(
 router.route("/change-phone").post(
     requireAuth,
     async (req, res) => {
-      const { old_otp, new_phone } = req.body;
-      const cleanOldOtp = typeof old_otp === "string" ? old_otp.trim() : "";
-      const cleanNewPhone = typeof new_phone === "string" ? new_phone.trim() : "";
+      const {old_otp: oldOtp, new_phone: newPhone} = req.body;
+      const cleanOldOtp = typeof oldOtp === "string" ? oldOtp.trim() : "";
+      const cleanNewPhone = typeof newPhone === "string" ? newPhone.trim() : "";
 
       if (!cleanOldOtp) {
-        return res.status(400).json({ success: false, detail: "Old phone OTP is required" });
+        return res.status(400).json({
+          success: false,
+          detail: "Old phone OTP is required",
+        });
       }
       if (!cleanNewPhone || !/^[6-9]\d{9}$/.test(cleanNewPhone)) {
-        return res.status(400).json({ success: false,
+        return res.status(400).json({success: false,
           detail: "Enter a valid 10-digit Indian mobile number for new phone",
         });
       }
 
       try {
         if (!req.user.otp_val) {
-          return res.status(400).json({ success: false, detail: "No OTP found. Please request a new one." });
+          return res.status(400).json({
+            success: false,
+            detail: "No OTP found. Please request a new one.",
+          });
         }
         if (req.user.otp_expires_at < new Date()) {
-          return res.status(400).json({ success: false, detail: "OTP has expired. Please request a new one." });
+          return res.status(400).json({
+            success: false,
+            detail: "OTP has expired. Please request a new one.",
+          });
         }
         if (req.user.otp_val !== cleanOldOtp) {
-          return res.status(400).json({ success: false, detail: "Invalid OTP. Please try again." });
+          return res.status(400).json({
+            success: false,
+            detail: "Invalid OTP. Please try again.",
+          });
         }
 
-        const existingPhone = await User.findOne({ phone: cleanNewPhone });
+        const existingPhone = await User.findOne({phone: cleanNewPhone});
         if (existingPhone) {
-          return res.status(409).json({ success: false, detail: "This phone number is already registered" });
+          return res.status(409).json({
+            success: false,
+            detail: "This phone number is already registered",
+          });
         }
 
         const newOtp = String(
@@ -398,7 +436,9 @@ router.route("/change-phone").post(
               key: "569ABB2E778B41",
               campaign: 0,
               contacts: cleanNewPhone,
-              msg: "Your OTP is " + newOtp + ". This code is valid for 10 minutes. Do not share it with anyone. - TWORINGS",
+              msg: "Your OTP is " + newOtp +
+                ". This code is valid for 10 minutes. " +
+                "Do not share it with anyone. - TWORINGS",
               senderid: "TWRING",
               routeid: 13,
               type: "text",
@@ -409,9 +449,9 @@ router.route("/change-phone").post(
           console.error("[change-phone] SMS failed:", smsErr.message);
         }
 
-        res.json({ success: true, message: "OTP sent to new phone number" });
+        res.json({success: true, message: "OTP sent to new phone number"});
       } catch (err) {
-        res.status(500).json({ success: false, detail: "Internal server error" });
+        res.status(500).json({success: false, detail: "Internal server error"});
       }
     },
 );
@@ -419,28 +459,43 @@ router.route("/change-phone").post(
 router.route("/verify-new-phone").post(
     requireAuth,
     async (req, res) => {
-      const { new_phone, otp } = req.body;
-      const cleanNewPhone = typeof new_phone === "string" ? new_phone.trim() : "";
+      const {new_phone: newPhone, otp} = req.body;
+      const cleanNewPhone = typeof newPhone === "string" ? newPhone.trim() : "";
       const cleanOtp = typeof otp === "string" ? otp.trim() : "";
 
       if (!cleanNewPhone || !cleanOtp) {
-        return res.status(400).json({ success: false, detail: "New phone and OTP are required" });
+        return res.status(400).json({
+          success: false,
+          detail: "New phone and OTP are required",
+        });
       }
 
       try {
         if (!req.user.otp_val) {
-          return res.status(400).json({ success: false, detail: "No OTP found. Please request a new one." });
+          return res.status(400).json({
+            success: false,
+            detail: "No OTP found. Please request a new one.",
+          });
         }
         if (req.user.otp_expires_at < new Date()) {
-          return res.status(400).json({ success: false, detail: "OTP has expired. Please request a new one." });
+          return res.status(400).json({
+            success: false,
+            detail: "OTP has expired. Please request a new one.",
+          });
         }
         if (req.user.otp_val !== cleanOtp) {
-          return res.status(400).json({ success: false, detail: "Invalid OTP. Please try again." });
+          return res.status(400).json({
+            success: false,
+            detail: "Invalid OTP. Please try again.",
+          });
         }
 
-        const existingPhone = await User.findOne({ phone: cleanNewPhone });
+        const existingPhone = await User.findOne({phone: cleanNewPhone});
         if (existingPhone) {
-          return res.status(409).json({ success: false, detail: "This phone number is already registered" });
+          return res.status(409).json({
+            success: false,
+            detail: "This phone number is already registered",
+          });
         }
 
         req.user.phone = cleanNewPhone;
@@ -448,12 +503,12 @@ router.route("/verify-new-phone").post(
         req.user.otp_expires_at = undefined;
         await req.user.save();
 
-        res.json({ success: true,
+        res.json({success: true,
           message: "Phone number updated successfully",
           user: userResponse(req.user),
         });
       } catch (err) {
-        res.status(500).json({ success: false, detail: "Internal server error" });
+        res.status(500).json({success: false, detail: "Internal server error"});
       }
     },
 );
@@ -461,35 +516,54 @@ router.route("/verify-new-phone").post(
 router.route("/change-password").post(
     requireAuth,
     async (req, res) => {
-      const { otp, new_password } = req.body;
+      const {otp, new_password: newPassword} = req.body;
       const cleanOtp = typeof otp === "string" ? otp.trim() : "";
 
       if (!cleanOtp) {
-        return res.status(400).json({ success: false, detail: "OTP is required" });
+        return res.status(400).json({
+          success: false,
+          detail: "OTP is required",
+        });
       }
-      if (!new_password || typeof new_password !== "string" || new_password.length < 6) {
-        return res.status(400).json({ success: false, detail: "Password must be at least 6 characters" });
+      if (
+        !newPassword ||
+        typeof newPassword !== "string" ||
+        newPassword.length < 6
+      ) {
+        return res.status(400).json({
+          success: false,
+          detail: "Password must be at least 6 characters",
+        });
       }
 
       try {
         if (!req.user.otp_val) {
-          return res.status(400).json({ success: false, detail: "No OTP found. Please request a new one." });
+          return res.status(400).json({
+            success: false,
+            detail: "No OTP found. Please request a new one.",
+          });
         }
         if (req.user.otp_expires_at < new Date()) {
-          return res.status(400).json({ success: false, detail: "OTP has expired. Please request a new one." });
+          return res.status(400).json({
+            success: false,
+            detail: "OTP has expired. Please request a new one.",
+          });
         }
         if (req.user.otp_val !== cleanOtp) {
-          return res.status(400).json({ success: false, detail: "Invalid OTP. Please try again." });
+          return res.status(400).json({
+            success: false,
+            detail: "Invalid OTP. Please try again.",
+          });
         }
 
-        req.user.password_hash = bcrypt.hashSync(new_password, 10);
+        req.user.password_hash = bcrypt.hashSync(newPassword, 10);
         req.user.otp_val = undefined;
         req.user.otp_expires_at = undefined;
         await req.user.save();
 
-        res.json({ success: true, message: "Password changed successfully" });
+        res.json({success: true, message: "Password changed successfully"});
       } catch (err) {
-        res.status(500).json({ success: false, detail: "Internal server error" });
+        res.status(500).json({success: false, detail: "Internal server error"});
       }
     },
 );

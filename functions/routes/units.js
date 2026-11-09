@@ -102,16 +102,16 @@ router.route("/").get(
           success: true,
           message: "Unit List",
           data: units.map((u) =>
-              unitResponse(
-                  u,
-                  cropsByUnit[
-                      u._id.toString()
-                  ] || [],
-              ),
+            unitResponse(
+                u,
+                cropsByUnit[
+                    u._id.toString()
+                ] || [],
             ),
+          ),
         });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -133,9 +133,13 @@ router.route("/").post(
         await unit.save();
         res
             .status(201)
-            .json({ success: true, message: "Unit Created", ...unitResponse(unit, []) });
+            .json({
+              success: true,
+              message: "Unit Created",
+              ...unitResponse(unit, []),
+            });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -149,7 +153,7 @@ router.route("/update").post(
       if (
         !isValidObjectId(unitId)
       ) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Unit not found",
         });
       }
@@ -159,7 +163,7 @@ router.route("/update").post(
           user_id: req.user._id,
         });
         if (!unit) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Unit not found",
           });
         }
@@ -197,7 +201,7 @@ router.route("/update").post(
           ...unitResponse(unit, crops),
         });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -211,7 +215,7 @@ router.route("/delete").post(
       if (
         !isValidObjectId(unitId)
       ) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Unit not found",
         });
       }
@@ -221,7 +225,7 @@ router.route("/delete").post(
           user_id: req.user._id,
         });
         if (!unit) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Unit not found",
           });
         }
@@ -240,7 +244,7 @@ router.route("/delete").post(
         await unit.deleteOne();
         res.status(204).end();
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -254,7 +258,7 @@ router.route("/crops").post(
       if (
         !isValidObjectId(unitId)
       ) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Unit not found",
         });
       }
@@ -264,7 +268,7 @@ router.route("/crops").post(
           user_id: req.user._id,
         });
         if (!unit) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Unit not found",
           });
         }
@@ -275,7 +279,7 @@ router.route("/crops").post(
             status: {$ne: "cultivated"},
           });
         if (liveCount >= MAX_LIVE_CROPS) {
-          return res.status(400).json({ success: false,
+          return res.status(400).json({success: false,
             detail: LIVE_CROP_LIMIT_MSG,
           });
         }
@@ -306,9 +310,13 @@ router.route("/crops").post(
         await crop.save();
         res
             .status(201)
-            .json({ success: true, message: "Crop Created", ...cropResponse(crop) });
+            .json({
+              success: true,
+              message: "Crop Created",
+              ...cropResponse(crop),
+            });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -326,7 +334,7 @@ router.route(
         !isValidObjectId(unitId) ||
         !isValidObjectId(cropId)
       ) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Crop not found",
         });
       }
@@ -337,7 +345,7 @@ router.route(
           user_id: req.user._id,
         });
         if (!crop) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Crop not found",
           });
         }
@@ -393,9 +401,13 @@ router.route(
               null;
         }
         await crop.save();
-        res.json({ success: true, message: "Crop Updated", ...cropResponse(crop) });
+        res.json({
+          success: true,
+          message: "Crop Updated",
+          ...cropResponse(crop),
+        });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -413,7 +425,7 @@ router.route(
         !isValidObjectId(unitId) ||
         !isValidObjectId(cropId)
       ) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Crop not found",
         });
       }
@@ -424,14 +436,14 @@ router.route(
           user_id: req.user._id,
         });
         if (!crop) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Crop not found",
           });
         }
         await crop.deleteOne();
         res.status(204).end();
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }

@@ -14,7 +14,11 @@ const userSchema = new Schema(
       push_token: {type: String},
       location: {type: String, default: ""},
       district: {type: String, default: ""},
-      gender: {type: String, enum: ["male", "female", "other", ""], default: ""},
+      gender: {
+        type: String,
+        enum: ["male", "female", "other", ""],
+        default: "",
+      },
       dob: {type: String, default: ""},
       marital_status: {
         type: String,

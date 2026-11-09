@@ -135,7 +135,7 @@ router.route("/summary").get(
           };
         });
 
-        res.json({ success: true,
+        res.json({success: true,
           message: "Finance Summary",
           total_estimated: totalEstimated,
           total_spent: totalSpent,
@@ -146,7 +146,7 @@ router.route("/summary").get(
           farms: farmRows,
         });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -158,7 +158,7 @@ router.route("/budgets/update").post(
     async (req, res) => {
       const farmId = req.body.farm_id;
       if (!isValidObjectId(farmId)) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Unit not found",
         });
       }
@@ -170,7 +170,7 @@ router.route("/budgets/update").post(
           user_id: req.user._id,
         });
         if (!farm) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Unit not found",
           });
         }
@@ -189,9 +189,13 @@ router.route("/budgets/update").post(
             estimatedExpense;
         }
         await budget.save();
-        res.json({ success: true, message: "Budget Updated", ...budgetResponse(budget) });
+        res.json({
+          success: true,
+          message: "Budget Updated",
+          ...budgetResponse(budget),
+        });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -204,7 +208,7 @@ router.route("/ledger").get(
       const filter = {user_id: req.user._id};
       if (req.query.farm_id !== undefined) {
         if (!isValidObjectId(req.query.farm_id)) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Ledger entry not found",
           });
         }
@@ -212,7 +216,7 @@ router.route("/ledger").get(
       }
       if (req.query.crop_id !== undefined) {
         if (!isValidObjectId(req.query.crop_id)) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Ledger entry not found",
           });
         }
@@ -231,7 +235,7 @@ router.route("/ledger").get(
           data: entries.map(ledgerResponse),
         });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -255,7 +259,7 @@ router.route("/ledger").post(
           user_id: req.user._id,
         });
         if (!farm) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Unit not found",
           });
         }
@@ -266,7 +270,7 @@ router.route("/ledger").post(
             farm_id: farm._id,
           });
           if (!crop) {
-            return res.status(400).json({ success: false,
+            return res.status(400).json({success: false,
               detail:
                 "Crop not found for this unit",
             });
@@ -288,9 +292,13 @@ router.route("/ledger").post(
         await entry.save();
         res
             .status(201)
-            .json({ success: true, message: "Ledger Entry Created", ...ledgerResponse(entry) });
+            .json({
+              success: true,
+              message: "Ledger Entry Created",
+              ...ledgerResponse(entry),
+            });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -304,7 +312,7 @@ router.route("/ledger/update").post(
       if (
         !isValidObjectId(entryId)
       ) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Ledger entry not found",
         });
       }
@@ -315,7 +323,7 @@ router.route("/ledger/update").post(
             user_id: req.user._id,
           });
         if (!entry) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Ledger entry not found",
           });
         }
@@ -323,7 +331,7 @@ router.route("/ledger/update").post(
           if (
             !isValidObjectId(req.body.farm_id)
           ) {
-            return res.status(404).json({ success: false,
+            return res.status(404).json({success: false,
               detail: "Unit not found",
             });
           }
@@ -332,7 +340,7 @@ router.route("/ledger/update").post(
             user_id: req.user._id,
           });
           if (!farm) {
-            return res.status(404).json({ success: false,
+            return res.status(404).json({success: false,
               detail: "Unit not found",
             });
           }
@@ -347,7 +355,7 @@ router.route("/ledger/update").post(
                   req.body.crop_id,
               )
             ) {
-              return res.status(400).json({ success: false,
+              return res.status(400).json({success: false,
                 detail:
                   "Crop not found for " +
                     "this unit",
@@ -363,7 +371,7 @@ router.route("/ledger/update").post(
                 farm_id: farmId,
               });
             if (!crop) {
-              return res.status(400).json({ success: false,
+              return res.status(400).json({success: false,
                 detail:
                   "Crop not found " +
                     "for this unit",
@@ -402,9 +410,13 @@ router.route("/ledger/update").post(
           );
         }
         await entry.save();
-        res.json({ success: true, message: "Ledger Entry Updated", ...ledgerResponse(entry) });
+        res.json({
+          success: true,
+          message: "Ledger Entry Updated",
+          ...ledgerResponse(entry),
+        });
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
@@ -418,7 +430,7 @@ router.route("/ledger/delete").post(
       if (
         !isValidObjectId(entryId)
       ) {
-        return res.status(404).json({ success: false,
+        return res.status(404).json({success: false,
           detail: "Ledger entry not found",
         });
       }
@@ -429,14 +441,14 @@ router.route("/ledger/delete").post(
             user_id: req.user._id,
           });
         if (!entry) {
-          return res.status(404).json({ success: false,
+          return res.status(404).json({success: false,
             detail: "Ledger entry not found",
           });
         }
         await entry.deleteOne();
         res.status(204).end();
       } catch (err) {
-        res.status(500).json({ success: false,
+        res.status(500).json({success: false,
           detail: "Internal server error",
         });
       }
