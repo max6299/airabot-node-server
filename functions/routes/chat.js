@@ -1,11 +1,24 @@
 const expmod = require("express");
 const ChatMessage =
     require("../models/chatmessage.model");
+const ChatConversation =
+    require("../models/chatconversation.model");
 const {requireAuth} = require("../middleware/auth");
 
 const router = new expmod.Router();
 
 const SUPPORTED_LANGUAGES = ["ta", "pa", "en"];
+const MAX_SEARCH_LENGTH = 100;
+const MAX_TITLE_LENGTH = 80;
+
+/**
+ * Escapes a string for literal use inside a RegExp.
+ * @param {string} value - Raw text.
+ * @return {string} Escaped text.
+ */
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /**
  * Creates a body field validation error.
@@ -235,16 +248,33 @@ router.route("/conversations").get(
           });
         }
       }
+      const query = typeof req.query.q === "string" ?
+        req.query.q.trim().slice(0, MAX_SEARCH_LENGTH) : "";
       try {
+        const match = {
+          user_id: req.user._id,
+          conversation_id: {
+            $exists: true,
+            $type: "string",
+            $nin: ["", "legacy"],
+          },
+        };
+        if (query) {
+          const pattern = new RegExp(escapeRegex(query), "i");
+          const [messageIds, titleIds] = await Promise.all([
+            ChatMessage.distinct("conversation_id", {
+              user_id: req.user._id,
+              $or: [{user_text: pattern}, {reply_text: pattern}],
+            }),
+            ChatConversation.distinct("conversation_id", {
+              user_id: req.user._id,
+              title: pattern,
+            }),
+          ]);
+          match.conversation_id = {$in: [...messageIds, ...titleIds]};
+        }
         const conversations = await ChatMessage.aggregate([
-          {$match: {
-            user_id: req.user._id,
-            conversation_id: {
-              $exists: true,
-              $type: "string",
-              $nin: ["", "legacy"],
-            },
-          }},
+          {$match: match},
           {$sort: {created_at: 1}},
           {$group: {
             _id: "$conversation_id",
@@ -257,11 +287,18 @@ router.route("/conversations").get(
           {$sort: {updated_at: -1}},
           {$limit: limit},
         ]);
+        const overrides = await ChatConversation.find({
+          user_id: req.user._id,
+          conversation_id: {$in: conversations.map((c) => c._id)},
+        }).lean();
+        const titleById = new Map(
+            overrides.map((o) => [o.conversation_id, o.title]),
+        );
         res.json({
           success: true,
           data: conversations.map((conversation) => ({
             id: conversation._id,
-            title: conversation.title,
+            title: titleById.get(conversation._id) || conversation.title,
             created_at: conversation.created_at.toISOString(),
             updated_at: conversation.updated_at.toISOString(),
             preview: conversation.preview,
@@ -310,5 +347,84 @@ router.route("/conversations/:conversationId/messages").get(
       }
     },
 );
+
+router.route("/conversations/:conversationId")
+    .patch(
+        requireAuth,
+        async (req, res) => {
+          const conversationId = req.params.conversationId;
+          if (!conversationId || conversationId === "legacy") {
+            return res.status(422).json({
+              success: false,
+              detail: "A valid conversation ID is required",
+            });
+          }
+          const title = typeof req.body === "object" && req.body &&
+            typeof req.body.title === "string" ? req.body.title.trim() : "";
+          if (!title || title.length > MAX_TITLE_LENGTH) {
+            return res.status(422).json({
+              success: false,
+              detail: `title must be 1-${MAX_TITLE_LENGTH} characters`,
+            });
+          }
+          try {
+            const exists = await ChatMessage.exists({
+              user_id: req.user._id,
+              conversation_id: conversationId,
+            });
+            if (!exists) {
+              return res.status(404).json({
+                success: false,
+                detail: "Conversation not found",
+              });
+            }
+            await ChatConversation.updateOne(
+                {user_id: req.user._id, conversation_id: conversationId},
+                {$set: {title: title, updated_at: new Date()}},
+                {upsert: true},
+            );
+            res.json({
+              success: true,
+              data: {id: conversationId, title: title},
+            });
+          } catch (err) {
+            res.status(500).json({success: false, detail: "Internal server error"});
+          }
+        },
+    )
+    .delete(
+        requireAuth,
+        async (req, res) => {
+          const conversationId = req.params.conversationId;
+          if (!conversationId || conversationId === "legacy") {
+            return res.status(422).json({
+              success: false,
+              detail: "A valid conversation ID is required",
+            });
+          }
+          try {
+            const result = await ChatMessage.deleteMany({
+              user_id: req.user._id,
+              conversation_id: conversationId,
+            });
+            if (!result.deletedCount) {
+              return res.status(404).json({
+                success: false,
+                detail: "Conversation not found",
+              });
+            }
+            await ChatConversation.deleteOne({
+              user_id: req.user._id,
+              conversation_id: conversationId,
+            });
+            res.json({
+              success: true,
+              data: {id: conversationId, deleted: result.deletedCount},
+            });
+          } catch (err) {
+            res.status(500).json({success: false, detail: "Internal server error"});
+          }
+        },
+    );
 
 module.exports = router;
