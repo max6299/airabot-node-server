@@ -388,7 +388,8 @@ router.route("/conversations/:conversationId")
               data: {id: conversationId, title: title},
             });
           } catch (err) {
-            res.status(500).json({success: false, detail: "Internal server error"});
+            res.status(500).json({success: false,
+              detail: "Internal server error"});
           }
         },
     )
@@ -422,7 +423,8 @@ router.route("/conversations/:conversationId")
               data: {id: conversationId, deleted: result.deletedCount},
             });
           } catch (err) {
-            res.status(500).json({success: false, detail: "Internal server error"});
+            res.status(500).json({success: false,
+              detail: "Internal server error"});
           }
         },
     );
